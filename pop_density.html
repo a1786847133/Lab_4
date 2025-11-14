@@ -43,7 +43,7 @@
       el.innerHTML=ranges.map((r,i)=>`<div class="swatch" style="background:${colors[i]}"></div><div>${r[0]===-Infinity?'< '+breaks[0]: r[1]===Infinity? '≥ '+breaks.at(-1) : r[0]+' – '+r[1]}</div>`).join('');
     }
 
-    fetch('assets/wa-covid-data-102521.geojson').then(r=>r.json()).then(states=>{
+    fetch('assets/stateData.geojson').then(r=>r.json()).then(states=>{
       map.on('load', ()=>{
         map.addSource('states',{type:'geojson',data:states});
         map.addLayer({id:'states-fill',type:'fill',source:'states',paint:{'fill-color':step('density',BREAKS,COLORS),'fill-opacity':0.85}});
