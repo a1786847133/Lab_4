@@ -3,149 +3,169 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>WA COVID‑19 Choropleth — Case rate per 10k</title>
+  <title>WA COVID-19 — Case rate per 10k (Choropleth)</title>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
   <style>
     html, body { height: 100%; margin: 0; }
     #map { position: fixed; inset: 0; }
-    #panel { position: fixed; top: 12px; right: 12px; width: 380px; max-height: calc(100vh - 24px);
-             background: rgba(18,18,18,.92); color:#f7f7f7; border-radius: 16px; padding: 14px;
-             box-shadow: 0 10px 30px rgba(0,0,0,.35); backdrop-filter: blur(6px); }
-    #panel h1 { margin: 0 0 2px; font-size: 1.05rem; }
-    #panel p { margin: 0 8px 10px 0; font-size: .9rem; opacity:.85; }
+
+    /* 右侧信息面板（>1024px 显示） */
+    #panel {
+      position: fixed; top: 12px; right: 12px; width: 380px;
+      max-height: calc(100vh - 24px);
+      background: rgba(18,18,18,.92); color:#f7f7f7;
+      border-radius: 16px; padding: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      backdrop-filter: blur(6px);
+    }
+    #panel h1 { margin: 0 0 4px; font-size: 1.06rem; }
+    #panel p  { margin: 0 0 10px; font-size: .9rem; opacity:.85; }
+
+    /* 图例 */
     #legend { display:grid; grid-template-columns: 20px 1fr; gap: 8px 10px; font-size: 12px; }
     .swatch { width: 20px; height: 12px; border-radius: 2px; border: 1px solid rgba(255,255,255,.25); }
-    label, select { font-size: .9rem; }
+
+    /* 窗口变窄时隐藏面板（作业要求） */
     @media (max-width: 1024px){ #panel { display:none !important; } }
+
+    /* 悬浮提示 */
     .tip{
-          position: absolute;
-          pointer-events: none;
-          background:#111;
-          color:#fff;
-          padding:6px 8px;
-          border-radius:8px;
-          font-size:12px;
-          transform: translate(-50%,-125%);
-          display:none;
-          z-index: 9999;
-        }  
+      position: absolute; pointer-events: none;
+      background:#111; color:#fff; padding:6px 8px; border-radius:8px;
+      font-size:12px; transform: translate(-50%,-125%);
+      display:none; z-index: 9999;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <aside id="panel">
-    <h1>Washington COVID‑19 — Choropleth</h1>
-    <p>Dataset: cumulative metrics up to Oct 25, 2021 (per 10k people). Choose an attribute and hover a county.</p>
-    <label for="attr">Attribute:</label>
-    <select id="attr">
-      <option value="casePer10k">Case rate per 10k</option>
-      <option value="deathPer10k">Death rate per 10k</option>
-      <option value="fullyVaxPer10k">Fully vaccinated per 10k</option>
-    </select>
-    <div id="legend" style="margin-top:10px;"></div>
+    <h1>Washington COVID-19 — Case rate per 10k</h1>
+    <p>Dataset: cumulative metrics up to Oct 25, 2021 (per 10k people). Hover a county to see the value.</p>
+    <div id="legend"></div>
   </aside>
   <div id="tooltip" class="tip"></div>
 
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
   <script>
-    mapboxgl.accessToken = 'pk.eyJ1IjoianN1MyIsImEiOiJjbWhlZW45ZTcwZGR4Mm1wd2FoNmc1eGx4In0.1uDkRhqn0WIQeUtnhvLPOA';
+    // ====== 选择一个属性（按要求仅选一个） ======
+    const ATTR       = 'casePer10k';                       // 可改 'deathPer10k' 或 'fullyVaxPer10k'
+    const ATTR_LABEL = 'Cumulative COVID-19 case rate (per 10k)';
+    const UNITS      = ' per 10k';
 
-    const SCHEMES = {
-      casePer10k:  ['#fff5f0','#fee0d2','#fcbba1','#fc9272','#fb6a4a','#de2d26','#a50f15'], // Reds
-      deathPer10k: ['#f2f0f7','#dadaeb','#bcbddc','#9e9ac8','#807dba','#6a51a3','#4a1486'], // Purples
-      fullyVaxPer10k: ['#f7fcf5','#e5f5e0','#c7e9c0','#a1d99b','#74c476','#31a354','#006d2c'] // Greens
-    };
-    const NUM_CLASSES = 7;
+    // 颜色（7 类 Reds，适合病例率）
+    const COLORS = ['#fff5f0','#fee0d2','#fcbba1','#fc9272','#fb6a4a','#de2d26','#a50f15'];
+    const NUM_CLASSES = COLORS.length;
 
+    // ====== 地图 ======
+    mapboxgl.accessToken = 'pk.eyJ1IjoianN1MyIsImEiOiJjbWhlZW45ZTcwZGR4Mm1wd2FoNmc1eGx4In0.1uDkRhqn0WIQeUtnhvLPOA'; // ← 换成你的 pk. 开头 token
     const map = new mapboxgl.Map({
       container: 'map',
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: 'mapbox://styles/mapbox/light-v11',
       center: [-120.5, 47.3],
       zoom: 5.8
     });
-    map.addControl(new mapboxgl.NavigationControl(), 'top-left');
+    map.addControl(new mapboxgl.NavigationControl(),'top-left');
     map.addControl(new mapboxgl.ScaleControl());
 
-    fetch('assets/wa-covid-data-102521.geojson').then(r => r.json()).then(data => init(data));
+    // 确保 tooltip 在地图之上
+    const tip = document.getElementById('tooltip');
+    document.getElementById('map').appendChild(tip);
+
+    // 读本地数据
+    fetch('assets/wa-covid-data-102521.geojson')
+      .then(r => r.json())
+      .then(gj => init(gj));
 
     function init(gj){
       map.on('load', () => {
         map.addSource('covid', { type:'geojson', data: gj });
-        map.addLayer({ id:'covid-fill', type:'fill', source:'covid', paint:{ 'fill-color':'#888', 'fill-opacity':0.85 }});
-        map.addLayer({ id:'covid-outline', type:'line', source:'covid', paint:{ 'line-color':'#111', 'line-width':0.8 }});
+        map.addLayer({
+          id: 'covid-fill',
+          type: 'fill',
+          source: 'covid',
+          paint: { 'fill-color': '#888', 'fill-opacity': 0.88 }
+        });
+        map.addLayer({
+          id: 'covid-outline',
+          type: 'line',
+          source: 'covid',
+          paint: { 'line-color':'#111', 'line-width': 0.8 }
+        });
 
-        // Fit to WA
+        // 初始视图：适配华盛顿州边界，右侧留出面板空间
         const b = geojsonBounds(gj);
         if (b) map.fitBounds(b, { padding: { top:20, right:(window.innerWidth>1024?380:20), bottom:20, left:20 } });
 
-        // Initial render
-        const sel = document.getElementById('attr');
-        render(sel.value);
-        sel.addEventListener('change', () => render(sel.value));
+        // 计算分位数分级并着色
+        const vals   = gj.features.map(f => Number(f.properties[ATTR])).filter(v => !Number.isNaN(v));
+        const breaks = quantiles(vals, NUM_CLASSES-1);
+        const expr   = stepFromBreaks(ATTR, breaks, COLORS);
+        map.setPaintProperty('covid-fill', 'fill-color', expr);
+        buildLegend(breaks, COLORS, ATTR_LABEL);
 
-        // Hover tooltip
-        const tip = document.getElementById('tooltip');
+        // 悬停提示
         map.on('mousemove','covid-fill', (e) => {
-          const f = e.features[0];
-          const k = sel.value;
-          const name = f.properties.name || f.properties.County || 'County';
-          const v = Number(f.properties[k]);
-          const unit = ' per 10k';
+          const f = e.features && e.features[0]; if (!f) return;
+          const nameKey = Object.keys(f.properties).find(s => /name|county/i.test(s)) || 'County';
+          const name = f.properties[nameKey] || 'County';
+          const v    = Number(f.properties[ATTR]);
           tip.style.display='block';
           tip.style.left = e.point.x + 'px';
           tip.style.top  = e.point.y + 'px';
-          tip.innerHTML = `<strong>${name} County</strong><br>${labelFor(k)}: ${v.toLocaleString()}${unit}`;
+          tip.innerHTML  = `<strong>${name} County</strong><br>${ATTR_LABEL}: ${v.toLocaleString()}${UNITS}`;
         });
-        map.on('mouseleave','covid-fill', () => tip.style.display='none');
+        map.on('mouseenter','covid-fill', ()=> map.getCanvas().style.cursor='pointer');
+        map.on('mouseleave','covid-fill', ()=>{ tip.style.display='none'; map.getCanvas().style.cursor=''; });
+
+        // 网页标题
+        document.title = 'WA COVID-19 — ' + ATTR_LABEL + ' (Choropleth)';
       });
     }
 
-    function render(attr){
-      const src = map.getSource('covid');
-      const gj = src._data;
-      const vals = gj.features.map(f => Number(f.properties[attr])).filter(v => !Number.isNaN(v)).sort((a,b)=>a-b);
-      const breaks = quantiles(vals, NUM_CLASSES-1);
-      const expr = stepFromBreaks(attr, breaks, SCHEMES[attr] || SCHEMES['casePer10k']);
-      map.setPaintProperty('covid-fill', 'fill-color', expr);
-      buildLegend(breaks, SCHEMES[attr] || SCHEMES['casePer10k'], labelFor(attr));
-      document.title = 'WA COVID‑19 Choropleth — ' + labelFor(attr);
-    }
-
-    function labelFor(k){
-      return k==='casePer10k' ? 'Case rate per 10k' :
-             k==='deathPer10k'? 'Death rate per 10k' :
-             k==='fullyVaxPer10k' ? 'Fully vaccinated per 10k' : k;
-    }
-
+    // ====== 工具函数 ======
     function stepFromBreaks(attr, breaks, colors){
-      const exp = ['step', ['get', attr], colors[0]];
-      for (let i=0;i<breaks.length;i++) exp.push(breaks[i], colors[i+1]);
-      return exp;
+      const e = ['step', ['get', attr], colors[0]];
+      for (let i=0;i<breaks.length;i++) e.push(breaks[i], colors[i+1]);
+      return e;
     }
-
     function quantiles(values, k){
       const v = values.slice().sort((a,b)=>a-b);
-      const breaks = [];
+      const br = [];
       for (let i=1;i<=k;i++){
-        const idx = (i * (v.length)) / (k+1);
-        const qi = v[Math.min(v.length-1, Math.max(0, Math.floor(idx)))];
-        breaks.push(Number(qi.toFixed(1)));
+        const idx = (i * v.length) / (k+1);
+        const qi  = v[Math.min(v.length-1, Math.max(0, Math.floor(idx)))];
+        br.push(Number(qi.toFixed(1)));
       }
-      return breaks.filter((x,i,a)=> i===0 || x>a[i-1]);
+      return br.filter((x,i,a)=> i===0 || x>a[i-1]);
     }
-
+    function buildLegend(breaks, colors, label){
+      const el = document.getElementById('legend');
+      const ranges = []; let prev = -Infinity;
+      for (let i=0;i<breaks.length;i++){ ranges.push([prev, breaks[i]]); prev = breaks[i]; }
+      ranges.push([prev, Infinity]);
+      el.innerHTML =
+        `<div style="grid-column:1 / -1; font-weight:600; margin-bottom:6px;">Legend — ${label}</div>` +
+        ranges.map((r,i)=>{
+          const fmt = n => Number.isFinite(n) ? Number(n).toLocaleString() : n;
+          const txt = (r[0]===-Infinity ? '< ' + fmt(breaks[0]) :
+                      r[1]===Infinity  ? '≥ ' + fmt(breaks[breaks.length-1]) :
+                      fmt(r[0]) + ' – ' + fmt(r[1]));
+          return `<div class="swatch" style="background:${colors[i]}"></div><div>${txt}</div>`;
+        }).join('');
+    }
     function geojsonBounds(gj){
       if (!gj || !gj.features) return null;
       let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
       for (const f of gj.features){
-        const g=f.geometry;
-        if (!g) continue;
-        const coords = g.type==='Polygon'? g.coordinates.flat(1) : g.type==='MultiPolygon'? g.coordinates.flat(2) : [];
+        const g=f.geometry; if (!g) continue;
+        const coords = g.type==='Polygon' ? g.coordinates.flat(1) :
+                       g.type==='MultiPolygon' ? g.coordinates.flat(2) : [];
         for (const c of coords){ const x=c[0], y=c[1];
           if (x<minX) minX=x; if (y<minY) minY=y; if (x>maxX) maxX=x; if (y>maxY) maxY=y;
         }
       }
-      return isFinite(minX)? [[minX,minY],[maxX,maxY]] : null;
+      return isFinite(minX) ? [[minX,minY],[maxX,maxY]] : null;
     }
   </script>
 </body>
