@@ -28,7 +28,7 @@
 
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
   <script>
-    mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
+    mapboxgl.accessToken = 'pk.eyJ1IjoianN1MyIsImEiOiJjbWhlZW45ZTcwZGR4Mm1wd2FoNmc1eGx4In0.1uDkRhqn0WIQeUtnhvLPOA';
     const BREAKS = [50,100,200,500,1000];
     const COLORS = ['#f7fbff','#deebf7','#c6dbef','#9ecae1','#6baed6','#3182bd'];
 
@@ -43,7 +43,7 @@
       el.innerHTML=ranges.map((r,i)=>`<div class="swatch" style="background:${colors[i]}"></div><div>${r[0]===-Infinity?'< '+breaks[0]: r[1]===Infinity? '≥ '+breaks.at(-1) : r[0]+' – '+r[1]}</div>`).join('');
     }
 
-    fetch('assets/stateData.geojson').then(r=>r.json()).then(states=>{
+    fetch('assets/wa-covid-data-102521.geojson').then(r=>r.json()).then(states=>{
       map.on('load', ()=>{
         map.addSource('states',{type:'geojson',data:states});
         map.addLayer({id:'states-fill',type:'fill',source:'states',paint:{'fill-color':step('density',BREAKS,COLORS),'fill-opacity':0.85}});
