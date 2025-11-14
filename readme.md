@@ -7,6 +7,7 @@
 ```
 [Lab_4]
 └─ assets/
+   │  state_Data.geojson
    └─ wa-covid-data-102521.geojson
 │  index.html
 │  pop_density.html
