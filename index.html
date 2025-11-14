@@ -9,7 +9,6 @@
     html, body { height: 100%; margin: 0; }
     #map { position: fixed; inset: 0; }
 
-    /* 右侧信息面板（>1024px 显示） */
     #panel {
       position: fixed; top: 12px; right: 12px; width: 380px;
       max-height: calc(100vh - 24px);
@@ -21,14 +20,11 @@
     #panel h1 { margin: 0 0 4px; font-size: 1.06rem; }
     #panel p  { margin: 0 0 10px; font-size: .9rem; opacity:.85; }
 
-    /* 图例 */
     #legend { display:grid; grid-template-columns: 20px 1fr; gap: 8px 10px; font-size: 12px; }
     .swatch { width: 20px; height: 12px; border-radius: 2px; border: 1px solid rgba(255,255,255,.25); }
 
-    /* 窗口变窄时隐藏面板（作业要求） */
     @media (max-width: 1024px){ #panel { display:none !important; } }
 
-    /* 悬浮提示 */
     .tip{
       position: absolute; pointer-events: none;
       background:#111; color:#fff; padding:6px 8px; border-radius:8px;
@@ -48,17 +44,14 @@
 
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
   <script>
-    // ====== 选择一个属性（按要求仅选一个） ======
-    const ATTR       = 'casePer10k';                       // 可改 'deathPer10k' 或 'fullyVaxPer10k'
+    const ATTR       = 'casePer10k';
     const ATTR_LABEL = 'Cumulative COVID-19 case rate (per 10k)';
     const UNITS      = ' per 10k';
 
-    // 颜色（7 类 Reds，适合病例率）
     const COLORS = ['#fff5f0','#fee0d2','#fcbba1','#fc9272','#fb6a4a','#de2d26','#a50f15'];
     const NUM_CLASSES = COLORS.length;
 
-    // ====== 地图 ======
-    mapboxgl.accessToken = 'pk.eyJ1IjoianN1MyIsImEiOiJjbWhlZW45ZTcwZGR4Mm1wd2FoNmc1eGx4In0.1uDkRhqn0WIQeUtnhvLPOA'; // ← 换成你的 pk. 开头 token
+    mapboxgl.accessToken = 'pk.eyJ1IjoianN1MyIsImEiOiJjbWhlZW45ZTcwZGR4Mm1wd2FoNmc1eGx4In0.1uDkRhqn0WIQeUtnhvLPOA';
     const map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/light-v11',
@@ -68,11 +61,9 @@
     map.addControl(new mapboxgl.NavigationControl(),'top-left');
     map.addControl(new mapboxgl.ScaleControl());
 
-    // 确保 tooltip 在地图之上
     const tip = document.getElementById('tooltip');
     document.getElementById('map').appendChild(tip);
 
-    // 读本地数据
     fetch('assets/wa-covid-data-102521.geojson')
       .then(r => r.json())
       .then(gj => init(gj));
@@ -93,18 +84,15 @@
           paint: { 'line-color':'#111', 'line-width': 0.8 }
         });
 
-        // 初始视图：适配华盛顿州边界，右侧留出面板空间
         const b = geojsonBounds(gj);
         if (b) map.fitBounds(b, { padding: { top:20, right:(window.innerWidth>1024?380:20), bottom:20, left:20 } });
 
-        // 计算分位数分级并着色
         const vals   = gj.features.map(f => Number(f.properties[ATTR])).filter(v => !Number.isNaN(v));
         const breaks = quantiles(vals, NUM_CLASSES-1);
         const expr   = stepFromBreaks(ATTR, breaks, COLORS);
         map.setPaintProperty('covid-fill', 'fill-color', expr);
         buildLegend(breaks, COLORS, ATTR_LABEL);
 
-        // 悬停提示
         map.on('mousemove','covid-fill', (e) => {
           const f = e.features && e.features[0]; if (!f) return;
           const nameKey = Object.keys(f.properties).find(s => /name|county/i.test(s)) || 'County';
@@ -118,12 +106,10 @@
         map.on('mouseenter','covid-fill', ()=> map.getCanvas().style.cursor='pointer');
         map.on('mouseleave','covid-fill', ()=>{ tip.style.display='none'; map.getCanvas().style.cursor=''; });
 
-        // 网页标题
         document.title = 'WA COVID-19 — ' + ATTR_LABEL + ' (Choropleth)';
       });
     }
 
-    // ====== 工具函数 ======
     function stepFromBreaks(attr, breaks, colors){
       const e = ['step', ['get', attr], colors[0]];
       for (let i=0;i<breaks.length;i++) e.push(breaks[i], colors[i+1]);
