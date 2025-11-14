@@ -3,75 +3,166 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>US State Population Density — Choropleth</title>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
   <style>
     html, body { height: 100%; margin: 0; }
     #map { position: fixed; inset: 0; }
-    #panel { position: fixed; top: 12px; right: 12px; width: 340px; max-height: calc(100vh - 24px);
-             background: rgba(255,255,255,.9); color:#111; border-radius: 16px; padding: 14px;
-             box-shadow: 0 10px 30px rgba(0,0,0,.25); backdrop-filter: blur(6px); }
+
+    /* 右上信息面板（>1024px 显示） */
+    #panel {
+      position: fixed; top: 12px; right: 12px; width: 360px;
+      max-height: calc(100vh - 24px);
+      background: rgba(255,255,255,.92); color:#111;
+      border-radius: 16px; padding: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      backdrop-filter: blur(6px);
+    }
     #panel h1 { margin: 0 0 6px; font-size: 1.05rem; }
     #legend { display:grid; grid-template-columns: 20px 1fr; gap: 8px 10px; margin-top: 10px; font-size: 12px; }
     .swatch { width: 20px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,.15); }
+
+    /* 小屏隐藏面板（作业要求） */
     @media (max-width: 1024px){ #panel { display:none !important; } }
-    .tip { position: absolute; pointer-events: none; background:#111; color:#fff; padding:6px 8px; border-radius:8px; font-size:12px; transform: translate(-50%,-125%); display:none; }
+
+    /* 悬停提示 */
+    .tip{
+      position: absolute; pointer-events: none;
+      background:#111; color:#fff; padding:6px 8px; border-radius:8px;
+      font-size:12px; transform: translate(-50%,-125%);
+      display:none; z-index: 9999;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="panel">
+  <aside id="panel">
     <h1>Population Density by State</h1>
     <div id="legend"></div>
-  </div>
+  </aside>
   <div id="tooltip" class="tip"></div>
 
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
   <script>
     mapboxgl.accessToken = 'pk.eyJ1IjoianN1MyIsImEiOiJjbWhlZW45ZTcwZGR4Mm1wd2FoNmc1eGx4In0.1uDkRhqn0WIQeUtnhvLPOA';
-    const BREAKS = [50,100,200,500,1000];
-    const COLORS = ['#f7fbff','#deebf7','#c6dbef','#9ecae1','#6baed6','#3182bd'];
 
-    const map = new mapboxgl.Map({ container:'map', style:'mapbox://styles/mapbox/light-v11', center:[-96,38], zoom:3.1 });
+    // 等级分段（人/平方英里）
+    const BREAKS = [10, 50, 100, 200, 500, 1000];
+    const COLORS = ['#f7fbff','#deebf7','#c6dbef','#9ecae1','#6baed6','#3182bd','#08519c'];
+    const NO_DATA_COLOR = '#cccccc';
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/light-v11',
+      center: [-98, 38],
+      zoom: 3.1
+    });
     map.addControl(new mapboxgl.NavigationControl(),'top-left');
     map.addControl(new mapboxgl.ScaleControl());
 
-    function step(attr,breaks,colors){ const e=['step',['get',attr],colors[0]]; for (let i=0;i<breaks.length;i++) e.push(breaks[i],colors[i+1]); return e; }
-    function buildLegend(breaks,colors){
-      const el=document.getElementById('legend'); const ranges=[]; let prev=-Infinity;
-      for (let i=0;i<breaks.length;i++){ ranges.push([prev,breaks[i]]); prev=breaks[i]; } ranges.push([prev,Infinity]);
-      el.innerHTML=ranges.map((r,i)=>`<div class="swatch" style="background:${colors[i]}"></div><div>${r[0]===-Infinity?'< '+breaks[0]: r[1]===Infinity? '≥ '+breaks.at(-1) : r[0]+' – '+r[1]}</div>`).join('');
+    // 让 tooltip 始终在地图上方
+    const tip = document.getElementById('tooltip');
+    document.getElementById('map').appendChild(tip);
+
+    // 依次尝试加载：你的本地数据 -> 备用本地文件名 -> Mapbox 示例（含全美+阿拉斯加）
+    const CANDIDATES = [
+      'assets/state_data.geojson',
+      'assets/stateData.geojson',
+      'https://docs.mapbox.com/mapbox-gl-js/assets/us_states.geojson'
+    ];
+    (function loadSeq(i){
+      fetch(CANDIDATES[i]).then(r => { if (!r.ok) throw new Error(); return r.json(); })
+        .then(gj => init(gj))
+        .catch(() => i+1 < CANDIDATES.length ? loadSeq(i+1) : console.error('Failed to load any state data'));
+    })(0);
+
+    function init(states){
+      map.on('load', () => {
+        const sampleProps = states.features[0].properties || {};
+        const nameKey = guessKey(sampleProps, ['name','STATE_NAME','state']);
+        const densKey = guessKey(sampleProps, ['density','pop_density','density_sqmi','population_density']);
+
+        map.addSource('states', { type:'geojson', data: states });
+
+        // 有数据：按分级色；没数据：灰色
+        const colorExpr = [
+          'case',
+          ['all', ['has', densKey], ['>=', ['to-number',['get', densKey]], 0]],
+          stepExpr(densKey, BREAKS, COLORS),
+          NO_DATA_COLOR
+        ];
+
+        map.addLayer({
+          id:'states-fill', type:'fill', source:'states',
+          paint:{ 'fill-color': colorExpr, 'fill-opacity': 0.88 }
+        });
+        map.addLayer({
+          id:'states-outline', type:'line', source:'states',
+          paint:{ 'line-color':'#333', 'line-width': 0.6, 'line-opacity': .9 }
+        });
+
+        // 视图适配全国（含阿拉斯加）
+        const b = geojsonBounds(states);
+        if (b) map.fitBounds(b, { padding: 20 });
+
+        // 悬停提示
+        map.on('mousemove','states-fill',(e)=>{
+          const f = e.features && e.features[0]; if (!f) return;
+          const name = f.properties[nameKey] || 'State';
+          const v    = Number(f.properties[densKey]);
+          tip.style.display='block';
+          tip.style.left = e.point.x + 'px';
+          tip.style.top  = e.point.y + 'px';
+          tip.innerHTML  = Number.isFinite(v)
+            ? `<strong>${name}</strong><br>Density: ${v.toLocaleString()} /mi²`
+            : `<strong>${name}</strong><br><em>No density data</em>`;
+        });
+        map.on('mouseenter','states-fill', ()=> map.getCanvas().style.cursor='pointer');
+        map.on('mouseleave','states-fill', ()=>{ tip.style.display='none'; map.getCanvas().style.cursor=''; });
+
+        buildLegend(BREAKS, COLORS);
+      });
     }
 
-    fetch('assets/stateData.geojson').then(r=>r.json()).then(states=>{
-      map.on('load', ()=>{
-        map.addSource('states',{type:'geojson',data:states});
-        map.addLayer({id:'states-fill',type:'fill',source:'states',paint:{'fill-color':step('density',BREAKS,COLORS),'fill-opacity':0.85}});
-        map.addLayer({id:'states-outline',type:'line',source:'states',paint:{'line-color':'#333','line-width':0.6}});
-
-        const tip=document.getElementById('tooltip');
-        map.on('mousemove','states-fill',(e)=>{
-          const f=e.features[0]; const name=f.properties.name||'State'; const val=f.properties.density;
-          tip.style.display='block'; tip.style.left=e.point.x+'px'; tip.style.top=e.point.y+'px';
-          tip.innerHTML=`<strong>${name}</strong><br>Density: ${Number(val).toLocaleString()} /mi²`;
-        });
-        map.on('mouseleave','states-fill',()=> tip.style.display='none');
-
-        const b=geojsonBounds(states); if (b) map.fitBounds(b,{padding:{top:20,right:(window.innerWidth>1024?340:20),bottom:20,left:20}});
-        buildLegend(BREAKS,COLORS);
-      });
-    });
-
+    // ---------- helpers ----------
+    function guessKey(props, candidates){
+      for (const k of candidates){ if (k in props) return k; }
+      return null;
+    }
+    function stepExpr(attr, breaks, colors){
+      const e = ['step', ['to-number',['get', attr]], colors[0]];
+      for (let i=0;i<breaks.length;i++) e.push(breaks[i], colors[i+1]);
+      return e;
+    }
+    function buildLegend(breaks, colors){
+      const el = document.getElementById('legend');
+      const ranges = []; let prev = -Infinity;
+      for (let i=0;i<breaks.length;i++){ ranges.push([prev, breaks[i]]); prev = breaks[i]; }
+      ranges.push([prev, Infinity]);
+      el.innerHTML = ranges.map((r,i) => {
+        const label = r[0]===-Infinity ? `&lt; ${breaks[0]}` :
+                      r[1]===Infinity  ? `&ge; ${breaks[breaks.length-1]}` :
+                      `${r[0]} – ${r[1]}`;
+        return `<div class="swatch" style="background:${colors[i]}"></div><div>${label}</div>`;
+      }).join('');
+    }
     function geojsonBounds(gj){
       if (!gj || !gj.features) return null;
       let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
       for (const f of gj.features){
         const g=f.geometry; if (!g) continue;
-        const coords=g.type==='Polygon'? g.coordinates.flat(1) : g.type==='MultiPolygon'? g.coordinates.flat(2) : [];
+        const coords = g.type==='Polygon'? g.coordinates.flat(1) :
+                       g.type==='MultiPolygon'? g.coordinates.flat(2) : [];
         for (const c of coords){ const x=c[0], y=c[1];
           if (x<minX) minX=x; if (y<minY) minY=y; if (x>maxX) maxX=x; if (y>maxY) maxY=y;
         }
-      } return isFinite(minX)? [[minX,minY],[maxX,maxY]]:null;
+      }
+      return isFinite(minX) ? [[minX,minY],[maxX,maxY]] : null;
     }
   </script>
 </body>
