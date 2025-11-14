@@ -17,7 +17,18 @@
     .swatch { width: 20px; height: 12px; border-radius: 2px; border: 1px solid rgba(255,255,255,.25); }
     label, select { font-size: .9rem; }
     @media (max-width: 1024px){ #panel { display:none !important; } }
-    .tip { position: absolute; pointer-events: none; background:#111; color:#fff; padding:6px 8px; border-radius:8px; font-size:12px; transform: translate(-50%,-125%); display:none; }
+    .tip{
+          position: absolute;
+          pointer-events: none;
+          background:#111;
+          color:#fff;
+          padding:6px 8px;
+          border-radius:8px;
+          font-size:12px;
+          transform: translate(-50%,-125%);
+          display:none;
+          z-index: 9999;
+        }  
   </style>
 </head>
 <body>
