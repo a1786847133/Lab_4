@@ -1,0 +1,45 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Washington", "density": 118 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-125,45.5],[-116,45.5],[-116,49],[-125,49],[-125,45.5]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "California", "density": 252 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-125,32],[-114,32],[-114,42],[-125,42],[-125,32]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Texas", "density": 114 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-106.7,25.8],[-93.5,25.8],[-93.5,36.5],[-106.7,36.5],[-106.7,25.8]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Florida", "density": 401 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-87.8,24.3],[-80,24.3],[-80,31.1],[-87.8,31.1],[-87.8,24.3]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "New York", "density": 421 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-79.8,40.4],[-71.8,40.4],[-71.8,45.2],[-79.8,45.2],[-79.8,40.4]]]
+      }
+    }
+  ]
+}
