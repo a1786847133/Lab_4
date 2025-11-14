@@ -14,7 +14,6 @@
     html, body { height: 100%; margin: 0; }
     #map { position: fixed; inset: 0; }
 
-    /* 右上信息面板（>1024px 显示） */
     #panel {
       position: fixed; top: 12px; right: 12px; width: 360px;
       max-height: calc(100vh - 24px);
@@ -27,10 +26,8 @@
     #legend { display:grid; grid-template-columns: 20px 1fr; gap: 8px 10px; margin-top: 10px; font-size: 12px; }
     .swatch { width: 20px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,.15); }
 
-    /* 小屏隐藏面板（作业要求） */
     @media (max-width: 1024px){ #panel { display:none !important; } }
 
-    /* 悬停提示 */
     .tip{
       position: absolute; pointer-events: none;
       background:#111; color:#fff; padding:6px 8px; border-radius:8px;
@@ -51,7 +48,6 @@
   <script>
     mapboxgl.accessToken = 'pk.eyJ1IjoianN1MyIsImEiOiJjbWhlZW45ZTcwZGR4Mm1wd2FoNmc1eGx4In0.1uDkRhqn0WIQeUtnhvLPOA';
 
-    // 等级分段（人/平方英里）
     const BREAKS = [10, 50, 100, 200, 500, 1000];
     const COLORS = ['#f7fbff','#deebf7','#c6dbef','#9ecae1','#6baed6','#3182bd','#08519c'];
     const NO_DATA_COLOR = '#cccccc';
@@ -65,11 +61,9 @@
     map.addControl(new mapboxgl.NavigationControl(),'top-left');
     map.addControl(new mapboxgl.ScaleControl());
 
-    // 让 tooltip 始终在地图上方
     const tip = document.getElementById('tooltip');
     document.getElementById('map').appendChild(tip);
 
-    // 依次尝试加载：你的本地数据 -> 备用本地文件名 -> Mapbox 示例（含全美+阿拉斯加）
     const CANDIDATES = [
       'assets/state_data.geojson',
       'assets/stateData.geojson',
@@ -89,7 +83,6 @@
 
         map.addSource('states', { type:'geojson', data: states });
 
-        // 有数据：按分级色；没数据：灰色
         const colorExpr = [
           'case',
           ['all', ['has', densKey], ['>=', ['to-number',['get', densKey]], 0]],
@@ -106,11 +99,9 @@
           paint:{ 'line-color':'#333', 'line-width': 0.6, 'line-opacity': .9 }
         });
 
-        // 视图适配全国（含阿拉斯加）
         const b = geojsonBounds(states);
         if (b) map.fitBounds(b, { padding: 20 });
 
-        // 悬停提示
         map.on('mousemove','states-fill',(e)=>{
           const f = e.features && e.features[0]; if (!f) return;
           const name = f.properties[nameKey] || 'State';
@@ -129,7 +120,6 @@
       });
     }
 
-    // ---------- helpers ----------
     function guessKey(props, candidates){
       for (const k of candidates){ if (k in props) return k; }
       return null;
